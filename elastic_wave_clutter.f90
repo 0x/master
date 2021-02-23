@@ -127,7 +127,7 @@ M = nyu
 
 ! Calculation of the wave equation
 do while (tt < t)
-	 tt = tt + dt
+	tt = tt + dt
 
 	uxm1 = ux
 	uzm1 = uz
@@ -145,16 +145,14 @@ do while (tt < t)
 	tau2 = tau2x + tau2z
 	tau3 = tau3x + tau3z
 
-	source_term = 1 * (1.0 - 2.0 * a * (tt - t0)**2)*exp(-a * (tt - t0)**2)
+	source_term = 1.0 * (1.0 - 2.0 * a * (tt - t0)**2)*exp(-a * (tt - t0)**2)
 	tau3(101, 101) = tau3(101, 101) + source_term * dt
 
 	do i = 2,nx-1
 		do j = 2,nz-1
 			! PML for x
-			if (i<=nd) then
-				di=-3*vp(i,j)*log(0.0001)*(nd*dx-i*dx)**pow/(2*(nd*dx)**3)
-			else if (i>=nx-nd) then
-				di=-3*vp(i,j)*log(0.0001)*((+i-nx+nd)*dx)**pow/(2*(nd*dx)**3)
+			if (i>=nx-nd) then
+				di=-3*vp(i,j)*log(0.0001)*(i-nx+nd)**pow/(2*(nd*dx)**3)
 			else
 				di=0
 			end if
@@ -195,8 +193,8 @@ do while (tt < t)
 	enddo
 enddo
 
-open(unit = 11, file = "elastic_wave.txt", form='unformatted', access='direct', recl=nx*nz*sizeOfReal8)
-write(11, rec=2) v
+open(unit = 11, file = "test.mod", form='unformatted', access='direct', recl=nx*nz*sizeOfReal8)
+write(11, rec=1) v
 close(1)
 	
 end program elastic_wave
