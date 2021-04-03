@@ -1,22 +1,26 @@
+!mpirun --mca btl_vader_backing_directory /tmp --oversubscribe  -np 4 elastic_mpi
+
 program elastic_wave
 
-use :: mpi
+use mpi
 
 implicit none
 
 ! MPI stuff
 integer :: error, nprocs, rank
 integer :: istatus(MPI_STATUS_SIZE)
- 
+integer, dimension(MPI_STATUS_SIZE) :: status
+
 ! DD
 integer, parameter :: iprocs = 2, jprocs = 2
 
 ! Source in the global coordinate
-integer, parameter :: isrc = 11, jsrc = 11
+integer, parameter :: isrc = 50, jsrc = 50
+integer :: local_isrc, local_jsrc
 
 ! Wave equation parameters
 real(8), parameter :: dx = 20.0, dz = 20.0
-real(8), parameter :: ro = 2000.0, t = 1.5
+real(8), parameter :: ro = 2000.0, t = 1.0
 real(8), parameter :: t0 = t / 2.0
 real(8), parameter :: CFL = 0.5
 real(8) :: dt
@@ -47,24 +51,22 @@ real(8), dimension(:,:), allocatable :: tau2, tau2x, tau2z, tau2xp1, tau2zp1
 real(8), dimension(:,:), allocatable :: tau3, tau3x, tau3z, tau3xp1, tau3zp1
 real(8), dimension(:,:), allocatable :: B, L, M
 real(8) :: Mavg
+integer :: ista, iend, jsta, jend
 
 ! Itable interface
-!integer :: i, j
-integer :: itable(-1:iprocs, -1:jprocs)
-integer :: irank, myranki, myrankj
+integer :: irank, ranki, rankj
 integer :: inext, jnext, iprev, jprev
+
 real(8), dimension(:), allocatable :: tau2_s, tau1_s, vx_s, vz_s, ux_s, uz_s
 real(8), dimension(:), allocatable :: tau2_r, tau1_r, vx_r, vz_r, ux_r, uz_r
 real(8), dimension(:), allocatable :: send1, send2, send3, send4
 real(8), dimension(:), allocatable :: recv1, recv2, recv3, recv4
-integer, dimension(MPI_STATUS_SIZE) :: status
-integer :: ista, iend, jsta, jend
 
 ! MPI I/O
 integer(kind=MPI_OFFSET_KIND), parameter :: zero_off = 0
 integer :: globalsize(2), subsize(2), starts(2), locallenght, written_arr, read_arr, fhandle_w, fhandle_r
 
-character*60 :: input_filename="Model_clatter_Vp_S_20_I_4.mod"
+character*60 :: input_Vp_filename="Model_clatter_Vp_S_20_I_4.mod"
 character*60 :: outfile
 integer :: index
 integer :: iter_snap=0, num_snap=15
@@ -80,29 +82,9 @@ if (nprocs /= iprocs*jprocs) then
 	stop
 end if
 
-! Itable interface
-do j = -1, jprocs
-	do i = -1, iprocs
-		itable(i,j) = MPI_PROC_NULL
-	end do
-end do
-irank = 0
-do i = 0, iprocs-1
-	do j = 0, jprocs-1
-		itable(i,j) = irank
-		if (rank == irank) then
-			myranki = i;
-			myrankj = j
-		end if
-		irank = irank + 1
-	end do
-end do
-jnext = itable(myranki, myrankj + 1)
-jprev = itable(myranki, myrankj - 1)
-inext = itable(myranki+1, myrankj)
-iprev = itable(myranki-1, myrankj)
-
-! Allocate block 
+call calculate_itable(iprocs, jprocs, rank, inext, jnext, iprev, jprev, ranki, rankj) 
+	
+! TODO: decrease allocations 
 ! Uz
 allocate(v(nx, nz));
 allocate(vx(nx, nz));
@@ -188,21 +170,20 @@ globalsize(1)=nxlocal*iprocs
 globalsize(2)=nzlocal*jprocs
 subsize(1)=nxlocal
 subsize(2)=nzlocal
-starts(1)= myranki*nxlocal
-starts(2)= myrankj*nzlocal
+starts(1)= ranki*nxlocal
+starts(2)= rankj*nzlocal
 locallenght=subsize(1)*subsize(2)
 call mpi_type_create_subarray(2, globalsize, subsize, starts, MPI_ORDER_FORTRAN, MPI_REAL8, written_arr, error)
 call mpi_type_commit(written_arr, error)
 call mpi_type_create_subarray(2, globalsize, subsize, starts, MPI_ORDER_FORTRAN, MPI_REAL8, read_arr, error)
 call mpi_type_commit(read_arr, error)
 
-! MPI I/O
-call mpi_file_open(MPI_COMM_WORLD, input_filename, MPI_MODE_RDONLY, MPI_INFO_NULL, fhandle_r, error)
+call mpi_file_open(MPI_COMM_WORLD, input_Vp_filename, MPI_MODE_RDONLY, MPI_INFO_NULL, fhandle_r, error)
 call mpi_file_set_view(fhandle_r, zero_off, MPI_REAL8, read_arr,  "native", MPI_INFO_NULL, error)
-!call mpi_file_read_all(fhandle_r, vp(2:nx-1,2:nz-1), locallenght, MPI_REAL8, istatus, error)
+call mpi_file_read_all(fhandle_r, vp(2:nx-1,2:nz-1), locallenght, MPI_REAL8, istatus, error)
 call mpi_barrier(MPI_COMM_WORLD, error)
 call mpi_file_close(fhandle_r, error)
-vp = 3000.0
+
 ! Calculate Vs from Vp 
 vs = 0!vp/sqrt(3.0)
 
@@ -268,44 +249,46 @@ do while (tt < t)
     ux(1,:) = recv4(nz+1:2*nz)
     uz(1,:) = recv4(2*nz+1:3*nz)
 
-	if (rank == 0) then 
+    ! TODO: make subroutine
+    ! source 
+    if (isrc .gt. ranki*nxlocal .and. isrc .lt. (ranki+1)*nxlocal .and. &
+    	jsrc .gt. rankj*nzlocal .and. jsrc .lt. (rankj+1)*nzlocal) then 
 		source_term = 1.0 * (1.0 - 2.0 * a * (tt - t0)**2)*exp(-a * (tt - t0)**2)
-		tau3(99, 99) = tau3(99, 99) + source_term * dt
+		local_isrc = isrc-ranki*nxlocal
+		local_jsrc = jsrc-rankj*nzlocal
+		!write(*,*) local_isrc, local_jsrc
+		tau3(local_isrc, local_jsrc) = tau3(local_isrc, local_jsrc) + source_term * dt
 	end if 
-	
+
 	ista=2
 	jsta=2
 	iend=nx-1
 	jend=nz-1
-    if (myranki == 0) then
-		
+    if (ranki == 0) then
 		ista=ista+1
 	endif
-	if (myranki == iprocs - 1) then
-		
+	if (ranki == iprocs - 1) then
 		iend=iend-1
 	endif
-	if (myrankj == 0) then
-	
+	if (rankj == 0) then
 		jsta=jsta+1
 	endif
-	if (myrankj == jprocs - 1) then
-	
+	if (rankj == jprocs - 1) then
 		jend=jend-1
 	endif
 
 	do i = ista,iend
 		do j = jsta,jend
 			! PML for x
-			if (myranki*nxlocal+i >= iprocs*nxlocal-nd ) then
+			if (ranki*nxlocal+i >= iprocs*nxlocal-nd ) then
 				di=-3*vp(i,j)*log(0.0001)*((i-nx+nd)*dx)**pow/(2*(nd*dx)**3)
 			else
 				di=0
 			end if
 			! PML for z
-			if (myrankj*nzlocal+j>=jprocs*nzlocal-nd) then
+			if (rankj*nzlocal+j>=jprocs*nzlocal-nd) then
 				dj=-3*vp(i,j)*log(0.0001)*((j-nz+nd)*dz)**pow/(2*(nd*dz)**3)
-			else if (myrankj*nzlocal+j<=nd) then
+			else if (rankj*nzlocal+j<=nd) then
 				dj=-3*vp(i,j)*log(0.0001)*(nd*dz-j*dz)**pow/(2*(nd*dz)**3)
 			else
 				dj=0
@@ -338,11 +321,13 @@ do while (tt < t)
 		end do
 	end do
 
+	! V(n-1) = V(n)
 	uxm1 = ux
 	uzm1 = uz
 	vxm1 = vx
 	vzm1 = vz
 
+	! tau(n) = tau(n+1)
 	tau1x = tau1xp1
 	tau1z = tau1zp1
 	tau2x = tau2xp1
@@ -355,7 +340,6 @@ do while (tt < t)
 	tau3 = tau3xp1 + tau3zp1
 end do
 
-! MPI I/O
 call mpi_file_open(MPI_COMM_WORLD, "test_mpi.mod", MPI_MODE_WRONLY+MPI_MODE_CREATE, MPI_INFO_NULL, fhandle_w, error)
 call mpi_file_set_view(fhandle_w, zero_off, MPI_REAL8, written_arr,  "native", MPI_INFO_NULL, error)
 call mpi_file_write_all(fhandle_w, u(2:nx-1,2:nz-1), locallenght, MPI_REAL8, istatus, error)
@@ -363,5 +347,38 @@ call mpi_barrier(MPI_COMM_WORLD, error)
 call mpi_file_close(fhandle_w, error)
 
 call mpi_finalize(error)
+
+contains
+
+subroutine calculate_itable(iprocs, jprocs, rank, inext, jnext, iprev, jprev, myranki, myrankj) 	
+	
+	integer, intent(in) :: iprocs, jprocs, rank
+	integer, intent(out) :: inext, jnext, iprev, jprev, myranki, myrankj
+
+	integer :: itable(-1:iprocs, -1:jprocs)
+	integer :: irank, i, j
+
+	do j = -1, jprocs
+		do i = -1, iprocs
+			itable(i,j) = MPI_PROC_NULL
+		end do
+	end do
+	irank = 0
+	do i = 0, iprocs-1
+		do j = 0, jprocs-1
+			itable(i,j) = irank
+			if (rank == irank) then
+				myranki = i;
+				myrankj = j
+			end if
+			irank = irank + 1
+		end do
+	end do
+	jnext = itable(myranki, myrankj + 1)
+	jprev = itable(myranki, myrankj - 1)
+	inext = itable(myranki+1, myrankj)
+	iprev = itable(myranki-1, myrankj)
+
+end subroutine calculate_itable
 	
 end program elastic_wave
