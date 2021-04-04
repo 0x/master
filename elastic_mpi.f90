@@ -78,12 +78,12 @@ call mpi_comm_size(MPI_COMM_WORLD, nprocs, error)
 call mpi_comm_rank(MPI_COMM_WORLD, rank, error)
 
 if (nprocs /= iprocs*jprocs) then
-	write(*, *) 'ERROR, mpi_comm_size: ', nprocs
-	stop
+    write(*, *) 'ERROR, mpi_comm_size: ', nprocs
+    stop
 end if
 
 call calculate_itable(iprocs, jprocs, rank, inext, jnext, iprev, jprev, ranki, rankj) 
-	
+    
 ! TODO: decrease allocations 
 ! Uz
 allocate(v(nx, nz));
@@ -203,37 +203,37 @@ M = nyu
 
 ! Calculation of the wave equation
 do while (tt < t)
-	tt = tt + dt
+    tt = tt + dt
 
     send1(1:nx) = tau3(:,2)
     send1(nx+1:2*nx) = ux(:,2)
     send1(2*nx+1:3*nx) = uz(:,2)
     
-	send2(1:nx) = tau2(:,nz-1)
+    send2(1:nx) = tau2(:,nz-1)
     send2(nx+1:2*nx) = vx(:,nz-1)
     send2(2*nx+1:3*nx) = vz(:,nz-1)
-	
-	send3(1:nz) = tau1(2,:)
+    
+    send3(1:nz) = tau1(2,:)
     send3(nz+1:2*nz) = vx(2,:)
     send3(2*nz+1:3*nz) = vz(2,:)
 
-	send4(1:nz) = tau2(nx-1,:)
+    send4(1:nz) = tau2(nx-1,:)
     send4(nz+1:2*nz) = ux(nx-1,:)
     send4(2*nz+1:3*nz) = uz(nx-1,:)
 
     call mpi_send(send2, 3*nx, MPI_REAL8, jnext, 1, MPI_COMM_WORLD, error)
     call mpi_send(send1, 3*nx, MPI_REAL8, jprev, 1, MPI_COMM_WORLD, error)
-   		
-   	call mpi_send(send4, 3*nz, MPI_REAL8, inext, 1, MPI_COMM_WORLD, error)
-   	call mpi_send(send3, 3*nz, MPI_REAL8, iprev, 1, MPI_COMM_WORLD, error)
-	
-	call mpi_recv(recv2, 3*nx, MPI_REAL8, jprev, 1, MPI_COMM_WORLD, status, error)
-	call mpi_recv(recv1, 3*nx, MPI_REAL8, jnext, 1, MPI_COMM_WORLD, status, error)
+        
+    call mpi_send(send4, 3*nz, MPI_REAL8, inext, 1, MPI_COMM_WORLD, error)
+    call mpi_send(send3, 3*nz, MPI_REAL8, iprev, 1, MPI_COMM_WORLD, error)
+    
+    call mpi_recv(recv2, 3*nx, MPI_REAL8, jprev, 1, MPI_COMM_WORLD, status, error)
+    call mpi_recv(recv1, 3*nx, MPI_REAL8, jnext, 1, MPI_COMM_WORLD, status, error)
 
-	call mpi_recv(recv4, 3*nz, MPI_REAL8, iprev, 1, MPI_COMM_WORLD, status, error)
-	call mpi_recv(recv3, 3*nz, MPI_REAL8, inext, 1, MPI_COMM_WORLD, status, error)
+    call mpi_recv(recv4, 3*nz, MPI_REAL8, iprev, 1, MPI_COMM_WORLD, status, error)
+    call mpi_recv(recv3, 3*nz, MPI_REAL8, inext, 1, MPI_COMM_WORLD, status, error)
 
-	tau3(:,nz) = recv1(1:nx)
+    tau3(:,nz) = recv1(1:nx)
     ux(:,nz) = recv1(nx+1:2*nx)
     uz(:,nz) = recv1(2*nx+1:3*nx)
 
@@ -245,99 +245,99 @@ do while (tt < t)
     vx(nx,:) = recv3(nz+1:2*nz)
     vz(nx,:) = recv3(2*nz+1:3*nz)
 
-	tau2(1,:) = recv4(1:nz)
+    tau2(1,:) = recv4(1:nz)
     ux(1,:) = recv4(nz+1:2*nz)
     uz(1,:) = recv4(2*nz+1:3*nz)
 
     ! TODO: make subroutine
     ! source 
     if (isrc .gt. ranki*nxlocal .and. isrc .lt. (ranki+1)*nxlocal .and. &
-    	jsrc .gt. rankj*nzlocal .and. jsrc .lt. (rankj+1)*nzlocal) then 
-		source_term = 1.0 * (1.0 - 2.0 * a * (tt - t0)**2)*exp(-a * (tt - t0)**2)
-		local_isrc = isrc-ranki*nxlocal
-		local_jsrc = jsrc-rankj*nzlocal
-		!write(*,*) local_isrc, local_jsrc
-		tau3(local_isrc, local_jsrc) = tau3(local_isrc, local_jsrc) + source_term * dt
-	end if 
+        jsrc .gt. rankj*nzlocal .and. jsrc .lt. (rankj+1)*nzlocal) then 
+        source_term = 1.0 * (1.0 - 2.0 * a * (tt - t0)**2)*exp(-a * (tt - t0)**2)
+        local_isrc = isrc-ranki*nxlocal
+        local_jsrc = jsrc-rankj*nzlocal
+        !write(*,*) local_isrc, local_jsrc
+        tau3(local_isrc, local_jsrc) = tau3(local_isrc, local_jsrc) + source_term * dt
+    end if 
 
-	ista=2
-	jsta=2
-	iend=nx-1
-	jend=nz-1
+    ista=2
+    jsta=2
+    iend=nx-1
+    jend=nz-1
     if (ranki == 0) then
-		ista=ista+1
-	endif
-	if (ranki == iprocs - 1) then
-		iend=iend-1
-	endif
-	if (rankj == 0) then
-		jsta=jsta+1
-	endif
-	if (rankj == jprocs - 1) then
-		jend=jend-1
-	endif
+        ista=ista+1
+    endif
+    if (ranki == iprocs - 1) then
+        iend=iend-1
+    endif
+    if (rankj == 0) then
+        jsta=jsta+1
+    endif
+    if (rankj == jprocs - 1) then
+        jend=jend-1
+    endif
 
-	do i = ista,iend
-		do j = jsta,jend
-			! PML for x
-			if (ranki*nxlocal+i >= iprocs*nxlocal-nd ) then
-				di=-3*vp(i,j)*log(0.0001)*((i-nx+nd)*dx)**pow/(2*(nd*dx)**3)
-			else
-				di=0
-			end if
-			! PML for z
-			if (rankj*nzlocal+j>=jprocs*nzlocal-nd) then
-				dj=-3*vp(i,j)*log(0.0001)*((j-nz+nd)*dz)**pow/(2*(nd*dz)**3)
-			else if (rankj*nzlocal+j<=nd) then
-				dj=-3*vp(i,j)*log(0.0001)*(nd*dz-j*dz)**pow/(2*(nd*dz)**3)
-			else
-				dj=0
-			end if
-	 
-			ux(i,j)=(1-dt*di/2)*uxm1(i,j)/(1+dt*di/2)+B(i,j)*dt*(tau1(i+1,j)-tau1(i,j))/((1+dt*di/2)*dx)
-	 		uz(i,j)=(1-dt*dj/2)*uzm1(i,j)/(1+dt*dj/2)+B(i,j)*dt*(tau2(i,j)-tau2(i,j-1))/((1+dt*dj/2)*dz)
-	 
-	 		vx(i,j)=(1-dt*di/2)*vxm1(i,j)/(1+dt*di/2)+B(i,j)*dt*(tau2(i,j)-tau2(i-1,j))/((1+dt*di/2)*dx)
-	 		vz(i,j)=(1-dt*dj/2)*vzm1(i,j)/(1+dt*dj/2)+B(i,j)*dt*(tau3(i,j+1)-tau3(i,j))/((1+dt*dj/2)*dz)
+    do i = ista,iend
+        do j = jsta,jend
+            ! PML for x
+            if (ranki*nxlocal+i >= iprocs*nxlocal-nd ) then
+                di=-3*vp(i,j)*log(0.0001)*((i-nx+nd)*dx)**pow/(2*(nd*dx)**3)
+            else
+                di=0
+            end if
+            ! PML for z
+            if (rankj*nzlocal+j>=jprocs*nzlocal-nd) then
+                dj=-3*vp(i,j)*log(0.0001)*((j-nz+nd)*dz)**pow/(2*(nd*dz)**3)
+            else if (rankj*nzlocal+j<=nd) then
+                dj=-3*vp(i,j)*log(0.0001)*(nd*dz-j*dz)**pow/(2*(nd*dz)**3)
+            else
+                dj=0
+            end if
+     
+            ux(i,j)=(1-dt*di/2)*uxm1(i,j)/(1+dt*di/2)+B(i,j)*dt*(tau1(i+1,j)-tau1(i,j))/((1+dt*di/2)*dx)
+            uz(i,j)=(1-dt*dj/2)*uzm1(i,j)/(1+dt*dj/2)+B(i,j)*dt*(tau2(i,j)-tau2(i,j-1))/((1+dt*dj/2)*dz)
+     
+            vx(i,j)=(1-dt*di/2)*vxm1(i,j)/(1+dt*di/2)+B(i,j)*dt*(tau2(i,j)-tau2(i-1,j))/((1+dt*di/2)*dx)
+            vz(i,j)=(1-dt*dj/2)*vzm1(i,j)/(1+dt*dj/2)+B(i,j)*dt*(tau3(i,j+1)-tau3(i,j))/((1+dt*dj/2)*dz)
 
-	 		u(i,j)=ux(i,j)+uz(i,j)
-	 		u(i-1,j)=ux(i-1,j)+uz(i-1,j)
-	 		v(i,j)=vx(i,j)+vz(i,j)
-	 		v(i,j-1)=vx(i,j-1)+vz(i,j-1)
-	 		v(i+1,j)=vx(i+1,j)+vz(i+1,j)
-	 		u(i,j+1)=ux(i,j+1)+uz(i,j+1)
+            u(i,j)=ux(i,j)+uz(i,j)
+            u(i-1,j)=ux(i-1,j)+uz(i-1,j)
+            v(i,j)=vx(i,j)+vz(i,j)
+            v(i,j-1)=vx(i,j-1)+vz(i,j-1)
+            v(i+1,j)=vx(i+1,j)+vz(i+1,j)
+            u(i,j+1)=ux(i,j+1)+uz(i,j+1)
 
-	 		tau1xp1(i,j)=(1-dt*di/2)*tau1x(i,j)/(1+dt*di/2)+(L(i,j)+2*M(i,j))*dt*(u(i,j)-u(i-1,j))/((1+dt*di/2)*dx)
-	 		tau1zp1(i,j)=(1-dt*dj/2)*tau1z(i,j)/(1+dt*dj/2)+L(i,j)*dt*(v(i,j)-v(i,j-1))/((1+dt*dj/2)*dz)
-	  
-	 		tau3xp1(i,j)=(1-dt*di/2)*tau3x(i,j)/(1+dt*di/2)+L(i,j)*dt*(u(i,j)-u(i-1,j))/((1+dt*di/2)*dx)
-	 		tau3zp1(i,j)=(1-dt*dj/2)*tau3z(i,j)/(1+dt*dj/2)+(L(i,j)+2*M(i,j))*dt*(v(i,j)-v(i,j-1))/((1+dt*dj/2)*dz)
+            tau1xp1(i,j)=(1-dt*di/2)*tau1x(i,j)/(1+dt*di/2)+(L(i,j)+2*M(i,j))*dt*(u(i,j)-u(i-1,j))/((1+dt*di/2)*dx)
+            tau1zp1(i,j)=(1-dt*dj/2)*tau1z(i,j)/(1+dt*dj/2)+L(i,j)*dt*(v(i,j)-v(i,j-1))/((1+dt*dj/2)*dz)
+      
+            tau3xp1(i,j)=(1-dt*di/2)*tau3x(i,j)/(1+dt*di/2)+L(i,j)*dt*(u(i,j)-u(i-1,j))/((1+dt*di/2)*dx)
+            tau3zp1(i,j)=(1-dt*dj/2)*tau3z(i,j)/(1+dt*dj/2)+(L(i,j)+2*M(i,j))*dt*(v(i,j)-v(i,j-1))/((1+dt*dj/2)*dz)
             
             ! Calculate M(i+1/2, j+1/2) as average 
             Mavg=(M(i-1,j)+M(i+1,j)+M(i,j-1)+M(i,j+1))/4.0; 
 
-	 		tau2xp1(i,j)=(1-dt*di/2)*tau2x(i,j)/(1+dt*di/2)+Mavg*dt*(v(i+1,j)-v(i,j))/((1+dt*di/2)*dx)
-	 		tau2zp1(i,j)=(1-dt*dj/2)*tau2z(i,j)/(1+dt*dj/2)+Mavg*dt*(u(i,j+1)-u(i,j))/((1+dt*dj/2)*dz)
-		end do
-	end do
+            tau2xp1(i,j)=(1-dt*di/2)*tau2x(i,j)/(1+dt*di/2)+Mavg*dt*(v(i+1,j)-v(i,j))/((1+dt*di/2)*dx)
+            tau2zp1(i,j)=(1-dt*dj/2)*tau2z(i,j)/(1+dt*dj/2)+Mavg*dt*(u(i,j+1)-u(i,j))/((1+dt*dj/2)*dz)
+        end do
+    end do
 
-	! V(n-1) = V(n)
-	uxm1 = ux
-	uzm1 = uz
-	vxm1 = vx
-	vzm1 = vz
+    ! V(n-1) = V(n)
+    uxm1 = ux
+    uzm1 = uz
+    vxm1 = vx
+    vzm1 = vz
 
-	! tau(n) = tau(n+1)
-	tau1x = tau1xp1
-	tau1z = tau1zp1
-	tau2x = tau2xp1
-	tau2z = tau2zp1
-	tau3x = tau3xp1
-	tau3z = tau3zp1
+    ! tau(n) = tau(n+1)
+    tau1x = tau1xp1
+    tau1z = tau1zp1
+    tau2x = tau2xp1
+    tau2z = tau2zp1
+    tau3x = tau3xp1
+    tau3z = tau3zp1
 
-	tau1 = tau1xp1 + tau1zp1
-	tau2 = tau2xp1 + tau2zp1
-	tau3 = tau3xp1 + tau3zp1
+    tau1 = tau1xp1 + tau1zp1
+    tau2 = tau2xp1 + tau2zp1
+    tau3 = tau3xp1 + tau3zp1
 end do
 
 call mpi_file_open(MPI_COMM_WORLD, "test_mpi.mod", MPI_MODE_WRONLY+MPI_MODE_CREATE, MPI_INFO_NULL, fhandle_w, error)
@@ -350,35 +350,35 @@ call mpi_finalize(error)
 
 contains
 
-subroutine calculate_itable(iprocs, jprocs, rank, inext, jnext, iprev, jprev, myranki, myrankj) 	
-	
-	integer, intent(in) :: iprocs, jprocs, rank
-	integer, intent(out) :: inext, jnext, iprev, jprev, myranki, myrankj
+subroutine calculate_itable(iprocs, jprocs, rank, inext, jnext, iprev, jprev, myranki, myrankj)     
+    
+    integer, intent(in) :: iprocs, jprocs, rank
+    integer, intent(out) :: inext, jnext, iprev, jprev, myranki, myrankj
 
-	integer :: itable(-1:iprocs, -1:jprocs)
-	integer :: irank, i, j
+    integer :: itable(-1:iprocs, -1:jprocs)
+    integer :: irank, i, j
 
-	do j = -1, jprocs
-		do i = -1, iprocs
-			itable(i,j) = MPI_PROC_NULL
-		end do
-	end do
-	irank = 0
-	do i = 0, iprocs-1
-		do j = 0, jprocs-1
-			itable(i,j) = irank
-			if (rank == irank) then
-				myranki = i;
-				myrankj = j
-			end if
-			irank = irank + 1
-		end do
-	end do
-	jnext = itable(myranki, myrankj + 1)
-	jprev = itable(myranki, myrankj - 1)
-	inext = itable(myranki+1, myrankj)
-	iprev = itable(myranki-1, myrankj)
+    do j = -1, jprocs
+        do i = -1, iprocs
+            itable(i,j) = MPI_PROC_NULL
+        end do
+    end do
+    irank = 0
+    do i = 0, iprocs-1
+        do j = 0, jprocs-1
+            itable(i,j) = irank
+            if (rank == irank) then
+                myranki = i;
+                myrankj = j
+            end if
+            irank = irank + 1
+        end do
+    end do
+    jnext = itable(myranki, myrankj + 1)
+    jprev = itable(myranki, myrankj - 1)
+    inext = itable(myranki+1, myrankj)
+    iprev = itable(myranki-1, myrankj)
 
 end subroutine calculate_itable
-	
+    
 end program elastic_wave
