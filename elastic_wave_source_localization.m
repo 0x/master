@@ -16,8 +16,8 @@
 close all;
 clear all;
 
-nx = 201;
-nz = 201;
+nx = 200;
+nz = 200;
 
 dx = 20;
 dz = 20;
@@ -44,7 +44,26 @@ dj=0;  % Damping parameter for y
 nd=20;  % Thickness of PML
 pow = 2;
 
-Vp = vp*ones(nx,nz);  % Compressional wave velocity [m/s]
+% create grid
+x=linspace(0,L,nx);
+z=linspace(0,H,nz);
+
+% Read vp clatter model from file
+filename = 'Model_clatter_Vp_S_20_I_4';
+filenameExtention =[filename '.mod'];
+fid = fopen(filenameExtention ,'r');
+Vp=fread(fid,[nx,nz],'double');
+
+figure(5), clf
+imagesc(x,z,Vp);
+colorbar
+xlabel('x [m]')
+ylabel('z [m]')
+zlabel('clatter')
+title(['clatter'])
+axis equal, axis tight
+
+%Vp = vp*ones(nx,nz);  % Compressional wave velocity [m/s]
 Vs = vs*ones(nx,nz);  % Shear wave velocity [m/s]
 rho = r*ones(nx,nz);  % Density [kg/m^3]
 
@@ -85,10 +104,6 @@ BU = b*a;
 LAM = lambda*a;
 MU = miu*a;
 GAMMA = LAM + 2*MU;
-
-% create grid
-x=linspace(0,L,nx);
-z=linspace(0,H,nz);
 
 % Stations
 receiver1 = zeros(nt,1);
