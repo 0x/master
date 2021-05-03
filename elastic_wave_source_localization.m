@@ -349,8 +349,8 @@ end
 max_value = max_energy(1,1);
 imax = 0;
 jmax = 0;
-for i=20:nx
-    for j=20:nz
+for i=10:nx
+    for j=nd:nz
         if (max_value < max_energy(i,j))
             max_value = max_energy(i,j);
             imax = i;
