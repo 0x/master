@@ -13,7 +13,7 @@
 % ux(i,j) = ux(i+1/2,j);
 % uz(i,j) = uz(i,j+1/2);
 
-close all;
+%close all;
 clear all;
 
 nx = 200;
@@ -54,13 +54,15 @@ filenameExtention =[filename '.mod'];
 fid = fopen(filenameExtention ,'r');
 Vp=fread(fid,[nx,nz],'double');
 
-figure(5), clf
+figure(50), clf
 imagesc(x,z,Vp);
 colorbar
-xlabel('x [m]')
-ylabel('z [m]')
-zlabel('clatter')
-title(['clatter'])
+colormap gray;
+
+xlabel('x (m)')
+ylabel('z (m)')
+zlabel('cltter')
+title(['clutter'])
 axis equal, axis tight
 
 %Vp = vp*ones(nx,nz);  % Compressional wave velocity [m/s]
@@ -226,10 +228,11 @@ end
 figure(1), clf
 imagesc(x,z,v);
 colorbar
-xlabel('x [m]')
-ylabel('z [m]')
+%colormap gray;
+xlabel('x (m)')
+ylabel('z (m)')
 zlabel('Pressure [Pa]')
-title(['Time = ',num2str(time),' sec'])
+title(['time = ',num2str(time),' sec'])
 axis equal, axis tight
 hold on
 plot(src_nz*dz, src_nx*dx,'gs',...
@@ -237,6 +240,16 @@ plot(src_nz*dz, src_nx*dx,'gs',...
     'MarkerSize',10,...
     'MarkerEdgeColor','g',...
     'MarkerFaceColor',[0.5,0.5,0.5])
+hold on
+x_recv = [20*dz, 40*dz, 60*dz, 80*dz, 100*dz, 120*dz, 140*dz, 160*dz, 180*dz];
+y_recv = [2*dx, 2*dx, 2*dx, 2*dx, 2*dx, 2*dx, 2*dx, 2*dx, 2*dx];
+plot(x_recv, y_recv,'cv',...
+    'LineWidth',2,...
+    'MarkerSize',7,...
+    'MarkerEdgeColor','c',...
+    'MarkerFaceColor',[0.5,0.5,0.5])
+legend('source','receiver')
+colormap gray;
 
 u = zeros(nx,nz);
 ux = zeros(nx,nz);
@@ -257,6 +270,7 @@ Txz_z = zeros(nx,nz);
 
 time = 0;
 for n=nt:-1:1
+
     for i=2:nx-1
         for j=2:nz-1
             % PML for x
@@ -339,7 +353,7 @@ for n=nt:-1:1
             
             energy(ii, jj) = 0.50 * ( 0.5*(r+r)* u(ii,jj)^2 ...
                 + 0.5*(r+r)*v(ii,jj)^2) + ...
-                0.50 * ( epsilon_xx * Txx(ii,jj) + epsilon_zz * Tzz(ii,jj) + epsilon_xz * Txz(ii,jj));
+                0.50 * ( epsilon_xx * Txx(ii,jj) + epsilon_zz * Tzz(ii,jj) + 2*epsilon_xz * Txz(ii,jj));
             
             max_energy(ii, jj) = (max_energy(ii, jj)+ energy(ii, jj));
         end
@@ -348,19 +362,30 @@ for n=nt:-1:1
     % Plot solution every 50 timesteps
     if (mod(n,5)==0)
         figure(2), clf
-        imagesc(x,z,uz);
+        imagesc(x,z,v);
         colorbar
-        xlabel('x [m]')
-        ylabel('z [m]')
+        colormap gray;
+
+        xlabel('x (m)')
+        ylabel('z (m)')
         zlabel('Pressure [Pa]')
         title(['Time = ',num2str(time),' sec'])
         axis equal, axis tight
+        hold on;
+plot(x_recv, y_recv,'cv',...
+    'LineWidth',2,...
+    'MarkerSize',7,...
+    'MarkerEdgeColor','c',...
+    'MarkerFaceColor',[0.5,0.5,0.5])
+legend('receiver')
+
         drawnow
+        
+
     end
     
     time = time+dt;
 end
-
 max_value = max_energy(1,1);
 imax = 0;
 jmax = 0;
@@ -377,15 +402,40 @@ end
 figure(3), clf
 imagesc(x,z,max_energy);
 colorbar
-xlabel('x [m]')
-ylabel('z [m]')
-zlabel('maxEnergy')
-title(['Time = ',num2str(time),' sec'])
+colormap gray;
+
+xlabel('x (m)')
+ylabel('z (m)')
+zlabel('max energy')
+title(['time = ',num2str(time),' sec'])
 axis equal, axis tight
+
 hold on;
 plot(jmax*dz, imax*dx,'gs',...
     'LineWidth',2,...
     'MarkerSize',10,...
     'MarkerEdgeColor','g',...
     'MarkerFaceColor',[0.5,0.5,0.5])
+hold on
+plot(x_recv, y_recv,'cv',...
+    'LineWidth',2,...
+    'MarkerSize',7,...
+    'MarkerEdgeColor','c',...
+    'MarkerFaceColor',[0.5,0.5,0.5])
+legend('source','receiver')
+for i=1:nx
+    for j=1:nz
+        if (max_energy(i,j)>1*10^(-33))
+            max_energy(i,j) = 0;
+        end
+    end
+end
 
+figure();
+s=surf(x, z, max_energy);
+colormap('cool');
+camlight; shading interp;
+set(s, 'facelighting', 'phong', 'facealpha', 0.7);
+colorbar; 
+%axis equal;
+xlabel('X'); ylabel('Y'); zlabel('Z');
